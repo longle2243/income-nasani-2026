@@ -197,7 +197,24 @@
       const oldSelect = card.querySelector('.host-select');
       oldSelect.replaceWith(hostOptions(contract.hostId));
       card.querySelector('.custom-host').value = contract.customHost;
-      card.querySelector('.domain-select').value = contract.domainId || '';
+      // card.querySelector('.domain-select').value = contract.domainId || '';
+      
+const domainSelect = card.querySelector('.domain-select');
+
+domainSelect.value = contract.domainId || '';
+
+domainSelect.addEventListener('change', () => {
+  const current = contracts.find(
+    item => item.id === card.dataset.id
+  );
+
+  if (!current) return;
+
+  current.domainId = domainSelect.value;
+  refreshSummary();
+});
+
+      
       card.querySelector('.custom-host-field').hidden = contract.hostId !== 'custom';
       card.querySelector('.handover').checked = !!contract.handover;
       card.querySelector('.shared').checked = !!contract.shared;
