@@ -239,6 +239,7 @@
     } else if (field.matches('.custom-host')) contract.customHost = field.value;
     else if (field.matches('.handover')) contract.handover = field.checked;
     else if (field.matches('.shared')) contract.shared = field.checked;
+    else if (field.matches('.domain-select')) contract.domainId = field.value;
     else return;
     refreshSummary();
   }
