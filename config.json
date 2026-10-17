@@ -1,0 +1,35 @@
+{
+  "hostingOptions": [
+    { "id": "2gb", "name": "2GB", "price": 2388000 },
+    { "id": "5gb", "name": "5GB", "price": 4872000 },
+    { "id": "8gb", "name": "8GB", "price": 6504000 },
+    { "id": "10gb", "name": "10GB", "price": 7200000 },
+    { "id": "12gb", "name": "12GB", "price": 8160000 },
+    { "id": "15gb", "name": "15GB", "price": 9600000 },
+    { "id": "20gb", "name": "20GB", "price": 12000000 },
+    { "id": "30gb", "name": "30GB", "price": 16080000 },
+    { "id": "40gb", "name": "40GB", "price": 20080000 },
+    { "id": "50gb", "name": "50GB", "price": 24000000 },
+    { "id": "60gb", "name": "60GB", "price": 28008000 },
+    { "id": "70gb", "name": "70GB", "price": 32040000 },
+    { "id": "100gb", "name": "100GB", "price": 43200000 },
+    { "id": "200gb", "name": "200GB", "price": 72000000 },
+    { "id": "300gb", "name": "300GB", "price": 96000000 },
+    { "id": "500gb", "name": "500GB", "price": 132000000 },
+    { "id": "1tb", "name": "1TB", "price": 214800000 },
+    { "id": "2tb", "name": "2TB", "price": 294000000 }
+  ],
+  "salaryLevels": [
+    { "minRevenue": 0, "base": 0, "webRate": 10, "hostRate": 10 },
+    { "minRevenue": 5000000, "base": 2000000, "webRate": 10, "hostRate": 10 },
+    { "minRevenue": 8000000, "base": 2500000, "webRate": 10, "hostRate": 15 },
+    { "minRevenue": 12000000, "base": 3000000, "webRate": 15, "hostRate": 15 },
+    { "minRevenue": 16000000, "base": 4000000, "webRate": 15, "hostRate": 15 },
+    { "minRevenue": 20000000, "base": 5000000, "webRate": 18, "hostRate": 15 },
+    { "minRevenue": 25000000, "base": 6000000, "webRate": 20, "hostRate": 15 },
+    { "minRevenue": 30000000, "base": 7000000, "webRate": 25, "hostRate": 20 },
+    { "minRevenue": 40000000, "base": 8000000, "webRate": 30, "hostRate": 20 },
+    { "minRevenue": 55000000, "base": 9000000, "webRate": 35, "hostRate": 20 },
+    { "minRevenue": 70000000, "base": 10000000, "webRate": 35, "hostRate": 25 }
+  ]
+}

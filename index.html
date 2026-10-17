@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f7fb">
+  <title>Tính lương doanh thu · Sales Desk</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand"><span class="brand-icon" aria-hidden="true">↗</span><div><strong>Sales Desk</strong><small>Công cụ tính lương doanh thu</small></div></div>
+      <div class="header-actions"><span class="save-indicator" id="saveIndicator">● Tự động lưu</span><button class="btn btn-secondary" id="openSettings" type="button">⚙ Cài đặt bảng giá & lương</button></div>
+    </header>
+
+    <main>
+      <section class="intro">
+        <div><p class="eyebrow">TỔNG QUAN THU NHẬP</p><h1>Tính lương đơn giản, rõ từng khoản.</h1><p>Nhập từng hợp đồng bên dưới. Kết quả tự cập nhật khi bạn thay đổi số liệu.</p></div>
+        <button class="btn btn-quiet" id="resetContracts" type="button">↻ Làm mới hợp đồng</button>
+      </section>
+
+      <section class="metrics" aria-label="Tổng quan tính lương">
+        <article class="metric metric-primary"><span>Lương dự tính thực nhận</span><strong id="totalSalary">0 đ</strong><small id="tierName">Chưa có doanh thu</small></article>
+        <article class="metric"><span>Doanh thu ghi nhận</span><strong id="totalRevenue">0 đ</strong><small>Web + Hosting sau điều chỉnh</small></article>
+        <article class="metric"><span>Hoa hồng tổng</span><strong id="totalCommission">0 đ</strong><small>Hoa hồng Web và Hosting</small></article>
+        <article class="metric"><span>Số hợp đồng</span><strong id="contractCount">1</strong><small id="handoverCount">0 hợp đồng đã bàn giao</small></article>
+      </section>
+
+      <div class="workspace">
+        <section class="panel contracts-panel">
+          <div class="section-head"><div><h2>Danh sách hợp đồng</h2><p>Doanh thu web nhập theo <b>triệu đồng</b> (ví dụ: 7,5 = 7.500.000 đ).</p></div><button class="btn btn-primary" id="addContract" type="button">＋ Thêm hợp đồng</button></div>
+          <div id="contracts" class="contracts"></div>
+          <button class="btn btn-add" id="addContractBottom" type="button">＋ Thêm một hợp đồng khác</button>
+        </section>
+
+        <aside class="panel breakdown-panel" aria-label="Chi tiết tính lương">
+          <div class="section-head"><div><h2>Chi tiết thu nhập</h2><p>Cách tính theo bậc doanh thu hiện tại.</p></div></div>
+          <div class="tier-banner"><span>Bậc đang áp dụng</span><strong id="tierLabel">Từ 0 đ</strong><small id="tierRates">Web 10% · Hosting 10%</small></div>
+          <div class="breakdown"><div><span>Doanh thu Web</span><strong id="webRevenue">0 đ</strong></div><div><span>Doanh thu Hosting</span><strong id="hostRevenue">0 đ</strong></div><div class="line"></div><div><span>Lương cơ bản</span><strong id="baseSalary">0 đ</strong></div><div><span>Hoa hồng Web</span><strong id="webCommission">0 đ</strong></div><div><span>Hoa hồng Hosting</span><strong id="hostCommission">0 đ</strong></div><div class="line"></div><div class="final-row"><span>Tổng lương</span><strong id="salaryBreakdown">0 đ</strong></div></div>
+          <div class="explain"><strong>ⓘ Cách tính mặc định</strong><p>Web chưa bàn giao ghi nhận 50% doanh thu. Hợp đồng chia sẻ ghi nhận 50% doanh thu Web và Hosting. Bậc lương dựa trên tổng doanh thu đã điều chỉnh.</p></div>
+          <button class="btn btn-secondary btn-full" id="exportCsv" type="button">↓ Xuất bảng kê CSV</button>
+        </aside>
+      </div>
+      <footer>Thông tin lưu trên trình duyệt của bạn, không gửi lên máy chủ. Đây là lương dự tính theo quy tắc được cấu hình, chưa bao gồm thuế hoặc khoản khấu trừ ngoài công thức.</footer>
+    </main>
+  </div>
+
+  <template id="contractTemplate">
+    <article class="contract-card">
+      <div class="contract-header"><div class="contract-title"><span class="contract-number">01</span><div><h3>Hợp đồng 01</h3><small class="contract-subtitle">Nhập thông tin bên dưới</small></div></div><button class="icon-button delete-contract" type="button" aria-label="Xóa hợp đồng" title="Xóa hợp đồng">✕</button></div>
+      <div class="form-grid">
+        <label class="field"><span>Doanh thu thiết kế Web <em>(triệu đồng)</em></span><div class="input-unit"><input class="web-amount" type="number" min="0" step="any" inputmode="decimal" placeholder="Ví dụ: 7,5"><span>triệu</span></div></label>
+        <label class="field"><span>Gói Hosting</span><select class="host-select"></select></label>
+        <label class="field custom-host-field" hidden><span>Giá Hosting tự nhập <em>(VNĐ)</em></span><div class="input-unit"><input class="custom-host" type="number" min="0" step="1" inputmode="numeric" placeholder="Nhập số tiền"><span>đ</span></div></label>
+      </div>
+      <div class="contract-footer"><label class="check"><input class="handover" type="checkbox"><span><b>Đã bàn giao</b><small>Bỏ chọn: Web chỉ tính 50%</small></span></label><label class="check"><input class="shared" type="checkbox"><span><b>Chia sẻ doanh thu</b><small>Web và Hosting tính 50%</small></span></label><div class="contract-total"><small>Doanh thu ghi nhận</small><strong>0 đ</strong></div></div>
+    </article>
+  </template>
+
+  <dialog id="settingsDialog" class="settings-dialog" aria-labelledby="settingsTitle">
+    <div class="settings-header"><div><p class="eyebrow">TÙY CHỈNH CHÍNH SÁCH</p><h2 id="settingsTitle">Cài đặt bảng giá & bậc lương</h2><p>Điều chỉnh trực tiếp, không cần sửa code.</p></div><button class="icon-button" id="closeSettings" type="button" aria-label="Đóng">✕</button></div>
+    <div class="settings-tabs" role="tablist"><button class="tab active" type="button" data-tab="hosting">Bảng giá Hosting</button><button class="tab" type="button" data-tab="salary">Bậc lương & hoa hồng</button></div>
+    <div class="settings-content" id="hostingSettings"><p class="muted">Đổi tên gói hoặc mức giá. Các hợp đồng đang chọn gói sẽ dùng giá mới.</p><div class="settings-table-wrap"><table class="settings-table"><thead><tr><th>Tên gói</th><th>Giá (VNĐ)</th><th></th></tr></thead><tbody id="hostingRows"></tbody></table></div><button class="btn btn-secondary" id="addHosting" type="button">＋ Thêm gói Hosting</button></div>
+    <div class="settings-content" id="salarySettings" hidden><p class="muted">Mỗi bậc áp dụng từ mức doanh thu tối thiểu cho đến trước bậc tiếp theo. Tỷ lệ nhập theo %, ví dụ 15 nghĩa là 15%.</p><div class="settings-table-wrap"><table class="settings-table salary-table"><thead><tr><th>Doanh thu từ (VNĐ)</th><th>Lương cơ bản</th><th>% Web</th><th>% Hosting</th><th></th></tr></thead><tbody id="salaryRows"></tbody></table></div><button class="btn btn-secondary" id="addSalaryTier" type="button">＋ Thêm bậc lương</button></div>
+    <p class="settings-error" id="settingsError" role="alert" hidden></p>
+    <div class="settings-actions"><button class="btn btn-quiet" id="restoreSettings" type="button">Khôi phục chính sách gốc</button><div><button class="btn btn-secondary" id="cancelSettings" type="button">Hủy</button><button class="btn btn-primary" id="saveSettings" type="button">Lưu thay đổi</button></div></div>
+  </dialog>
+</body>
+</html>
