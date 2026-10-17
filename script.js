@@ -1,4 +1,3 @@
-
 /**
  * Sales Desk — không sử dụng thư viện ngoài.
  * Các hàm tính toán tách riêng khỏi giao diện để dễ bảo trì.
@@ -8,6 +7,19 @@
   'use strict';
 
   const STORAGE_KEY = 'sales-desk-v2';
+  // Giá niêm yết với khách đã cộng 8%, nhưng doanh thu tính lương là giá gốc.
+  const PRICE_MARKUP = 1.08;
+  const DOMAIN_RATE = 0.05;
+  const INCOME_DEDUCTION = 0.10; // Khấu trừ thu nhập theo chính sách người dùng cung cấp.
+  const TAX_FREE_REVENUE = 5000000; // Doanh thu ghi nhận <= 5 triệu: không khấu trừ.
+  const DOMAIN_OPTIONS = [
+    { id: 'com', name: '.com', displayPrice: 452520 },
+    { id: 'vn', name: '.vn', displayPrice: 820000 },
+    { id: 'comvn', name: '.com.vn', displayPrice: 691000 }
+  ];
+  const priceWithMarkup = base => Math.round(safeNumber(base) * PRICE_MARKUP);
+  const priceBeforeMarkup = display => safeNumber(display) / PRICE_MARKUP;
+
   const DEFAULT_CONFIG = {
     hostingOptions: [
       ['2GB',2388000],['5GB',4872000],['8GB',6504000],['10GB',7200000],
@@ -28,7 +40,7 @@
   const $ = selector => document.querySelector(selector);
   const money = amount => `${Math.round(amount).toLocaleString('vi-VN')} đ`;
   const safeNumber = value => Math.max(0, Number(value) || 0);
-  const freshContract = () => ({ id: crypto.randomUUID?.() || `c-${Date.now()}-${Math.random()}`, webMillions: '', hostId: '', customHost: '', handover: false, shared: false });
+  const freshContract = () => ({ id: crypto.randomUUID?.() || `c-${Date.now()}-${Math.random()}`, webMillions: '', hostId: '', customHost: '', domainId: '', handover: false, shared: false });
   const clone = obj => JSON.parse(JSON.stringify(obj));
   const stored = loadSaved();
   let config = stored?.config || clone(DEFAULT_CONFIG);
@@ -48,28 +60,89 @@
     catch (_) { $('#saveIndicator').textContent = 'Không thể tự động lưu'; }
   }
 
-  /** Quy tắc tính giữ nguyên code cũ: bàn giao ảnh hưởng Web; chia sẻ ảnh hưởng cả Web/Host. */
+  /** Tính doanh thu theo giá gốc; giá niêm yết +8% chỉ để hiển thị. */
   function calculateContract(contract, policy = config) {
     const webRaw = safeNumber(contract.webMillions) * 1000000;
     const hostOption = policy.hostingOptions.find(h => h.id === contract.hostId);
-    const hostRaw = contract.hostId === 'custom' ? safeNumber(contract.customHost) : (hostOption?.price || 0);
+    // Giá Hosting tự nhập là giá khách thanh toán (đã +8%).
+    const hostRaw = contract.hostId === 'custom'
+      ? priceBeforeMarkup(contract.customHost)
+      : safeNumber(hostOption?.price);
+    const domainOption = DOMAIN_OPTIONS.find(d => d.id === contract.domainId);
+    const domainRaw = domainOption ? priceBeforeMarkup(domainOption.displayPrice) : 0;
     const shareFactor = contract.shared ? 0.5 : 1;
     const webRevenue = webRaw * (contract.handover ? 1 : 0.5) * shareFactor;
     const hostRevenue = hostRaw * shareFactor;
-    return { webRevenue, hostRevenue, revenue: webRevenue + hostRevenue };
+    // Khi chia doanh thu, tên miền cũng chia 50% như Hosting.
+    const domainRevenue = domainRaw * shareFactor;
+    return { webRevenue, hostRevenue, domainRevenue,
+      revenue: webRevenue + hostRevenue + domainRevenue };
   }
 
   function calculateSalary(items = contracts, policy = config) {
     const details = items.map(item => ({ ...item, ...calculateContract(item, policy) }));
-    const webRevenue = details.reduce((sum, row) => sum + row.webRevenue, 0);
-    const hostRevenue = details.reduce((sum, row) => sum + row.hostRevenue, 0);
-    const revenue = webRevenue + hostRevenue;
+    const sum = key => details.reduce((total, row) => total + row[key], 0);
+    const webRevenue = sum('webRevenue');
+    const hostRevenue = sum('hostRevenue');
+    const domainRevenue = sum('domainRevenue');
+    const revenue = webRevenue + hostRevenue + domainRevenue;
     const tier = [...policy.salaryLevels].sort((a, b) => a.minRevenue - b.minRevenue)
       .filter(level => revenue >= level.minRevenue).at(-1) || policy.salaryLevels[0];
     const webCommission = webRevenue * tier.webRate / 100;
     const hostCommission = hostRevenue * tier.hostRate / 100;
-    return { details, webRevenue, hostRevenue, revenue, tier, webCommission, hostCommission,
-      commission: webCommission + hostCommission, salary: tier.base + webCommission + hostCommission };
+    const domainCommission = domainRevenue * DOMAIN_RATE;
+    const commission = webCommission + hostCommission + domainCommission;
+    const grossSalary = tier.base + commission;
+    const deduction = revenue <= TAX_FREE_REVENUE ? 0 : grossSalary * INCOME_DEDUCTION;
+    const salary = grossSalary - deduction;
+    return { details, webRevenue, hostRevenue, domainRevenue, revenue, tier,
+      webCommission, hostCommission, domainCommission, commission,
+      grossSalary, deduction, salary };
+  }
+
+  /** Bổ sung trường mới bằng JavaScript để chỉ phải thay một file. */
+  function addInterfaceExtensions() {
+    const formGrid = $('#contractTemplate').content.querySelector('.form-grid');
+    const domainLabel = document.createElement('label');
+    domainLabel.className = 'field';
+    domainLabel.innerHTML = '<span>Tên miền <em>(giá khách đã +8%)</em></span>';
+    const domainSelect = document.createElement('select');
+    domainSelect.className = 'domain-select';
+    [['', 'Không có tên miền'], ...DOMAIN_OPTIONS.map(d => [d.id, `${d.name} · ${money(d.displayPrice)}`])]
+      .forEach(([value, title]) => {
+        const option = document.createElement('option');
+        option.value = value; option.textContent = title; domainSelect.append(option);
+      });
+    domainLabel.append(domainSelect);
+    formGrid.append(domainLabel);
+
+    // Đổi chú thích tại chỗ (không đụng HTML hay CSS cũ).
+    $('#totalRevenue').nextElementSibling.textContent = 'Web + Hosting + tên miền (giá gốc)';
+    $('#totalCommission').nextElementSibling.textContent = 'Hoa hồng Web, Hosting & tên miền';
+    const hostField = $('#contractTemplate').content.querySelector('.custom-host-field');
+    hostField.querySelector('span').innerHTML = 'Giá Hosting tự nhập <em>(giá đã +8%, VNĐ)</em>';
+    const note = document.createElement('small');
+    note.textContent = 'Giá khách thấy đã +8%; doanh thu tính lương sẽ tự chia 1,08.';
+    note.style.cssText = 'color:#71809a;font-size:11px;line-height:1.6';
+    hostField.append(note);
+
+    const breakdown = $('.breakdown');
+    const appendRow = (anchorSelector, id, title) => {
+      const row = document.createElement('div');
+      row.innerHTML = `<span>${title}</span><strong id="${id}">0 đ</strong>`;
+      breakdown.querySelector(anchorSelector).before(row);
+    };
+    appendRow('#baseSalary', 'domainRevenue', 'Doanh thu tên miền (giá gốc)');
+    appendRow('.final-row', 'domainCommission', 'Hoa hồng tên miền (5%)');
+    appendRow('.final-row', 'grossSalary', 'Tổng lương trước khấu trừ');
+    appendRow('.final-row', 'incomeDeduction', 'Khấu trừ thu nhập (10%)');
+    $('.final-row span').textContent = 'Lương thực nhận';
+    const explanation = $('.explain p');
+    explanation.textContent = 'Web chưa bàn giao tính 50%. Hợp đồng chia sẻ tính 50% cho Web, Hosting và tên miền. Giá Hosting/tên miền hiển thị đã cộng 8%, doanh thu tính lương dùng giá gốc. Tên miền hưởng 5% hoa hồng. Doanh thu ghi nhận trên 5 triệu: khấu trừ 10% trên tổng lương trước khấu trừ.';
+    $('footer').textContent = 'Dữ liệu lưu trên trình duyệt, không gửi lên máy chủ. Khấu trừ 10% là quy tắc tính lương bạn cung cấp, không phải kết luận về nghĩa vụ thuế theo pháp luật.';
+    // Chú thích trong cài đặt: giá Hosting lưu dưới dạng giá gốc.
+    $('#hostingSettings .muted').textContent = 'Nhập GIÁ GỐC Hosting (chưa cộng 8%) như trước. Ứng dụng tự hiển thị giá niêm yết +8% khi chọn gói.';
+    $('#hostingSettings th:nth-child(2)').textContent = 'Giá gốc (VNĐ, chưa +8%)';
   }
 
   function refreshSummary() {
@@ -85,6 +158,10 @@
     set('#tierRates', `Web ${result.tier.webRate}% · Hosting ${result.tier.hostRate}%`);
     set('#webRevenue', money(result.webRevenue));
     set('#hostRevenue', money(result.hostRevenue));
+    set('#domainRevenue', money(result.domainRevenue));
+    set('#domainCommission', money(result.domainCommission));
+    set('#grossSalary', money(result.grossSalary));
+    set('#incomeDeduction', result.deduction ? `− ${money(result.deduction)}` : '0 đ (miễn)');
     set('#baseSalary', money(result.tier.base));
     set('#webCommission', money(result.webCommission));
     set('#hostCommission', money(result.hostCommission));
@@ -98,7 +175,7 @@
 
   function hostOptions(selected) {
     const options = [['', 'Chọn gói Hosting (không bắt buộc)'],
-      ...config.hostingOptions.map(h => [h.id, `${h.name} · ${money(h.price)}`]), ['custom','Tự nhập giá Hosting']];
+      ...config.hostingOptions.map(h => [h.id, `${h.name} · ${money(priceWithMarkup(h.price))}`]), ['custom','Tự nhập giá Hosting']];
     const select = document.createElement('select');
     select.className = 'host-select';
     options.forEach(([value, label]) => {
@@ -120,6 +197,7 @@
       const oldSelect = card.querySelector('.host-select');
       oldSelect.replaceWith(hostOptions(contract.hostId));
       card.querySelector('.custom-host').value = contract.customHost;
+      card.querySelector('.domain-select').value = contract.domainId || '';
       card.querySelector('.custom-host-field').hidden = contract.hostId !== 'custom';
       card.querySelector('.handover').checked = !!contract.handover;
       card.querySelector('.shared').checked = !!contract.shared;
@@ -256,15 +334,31 @@
   function exportCsv() {
     const result = calculateSalary();
     const rows = [
-      ['Hợp đồng','Doanh thu Web gốc (đ)','Gói Hosting','Giá Hosting gốc (đ)','Đã bàn giao','Chia sẻ','Web ghi nhận (đ)','Host ghi nhận (đ)','Tổng ghi nhận (đ)'],
-      ...result.details.map((c,i) => [i+1,safeNumber(c.webMillions)*1000000,
-        c.hostId === 'custom' ? 'Tự nhập' : (config.hostingOptions.find(h=>h.id===c.hostId)?.name || 'Không có'),
-        c.hostId === 'custom' ? safeNumber(c.customHost) : (config.hostingOptions.find(h=>h.id===c.hostId)?.price || 0),
-        c.handover?'Có':'Không',c.shared?'Có':'Không',c.webRevenue,c.hostRevenue,c.revenue]),
-      [],['Tổng doanh thu',result.revenue],['Doanh thu Web',result.webRevenue],['Doanh thu Hosting',result.hostRevenue],
-      ['Bậc doanh thu từ',result.tier.minRevenue],['Lương cơ bản',result.tier.base],
-      ['Hoa hồng Web (%)',result.tier.webRate],['Hoa hồng Hosting (%)',result.tier.hostRate],
-      ['Tiền hoa hồng Web',result.webCommission],['Tiền hoa hồng Hosting',result.hostCommission],['TỔNG LƯƠNG',result.salary]
+      ['Hợp đồng','Web gốc (đ)','Gói Hosting','Hosting giá khách +8% (đ)',
+        'Tên miền','Tên miền giá khách +8% (đ)','Đã bàn giao','Chia sẻ',
+        'Web ghi nhận (đ)','Hosting ghi nhận (đ)','Tên miền ghi nhận (đ)','Tổng ghi nhận (đ)'],
+      ...result.details.map((c, i) => {
+        const hosting = config.hostingOptions.find(h => h.id === c.hostId);
+        const domain = DOMAIN_OPTIONS.find(d => d.id === c.domainId);
+        return [i + 1, safeNumber(c.webMillions) * 1000000,
+          c.hostId === 'custom' ? 'Tự nhập' : (hosting?.name || 'Không có'),
+          c.hostId === 'custom' ? safeNumber(c.customHost) : priceWithMarkup(hosting?.price),
+          domain?.name || 'Không có', domain?.displayPrice || 0,
+          c.handover ? 'Có' : 'Không', c.shared ? 'Có' : 'Không',
+          c.webRevenue, c.hostRevenue, c.domainRevenue, c.revenue];
+      }),
+      [], ['Tổng doanh thu ghi nhận', result.revenue],
+      ['Doanh thu Web', result.webRevenue], ['Doanh thu Hosting', result.hostRevenue],
+      ['Doanh thu tên miền', result.domainRevenue],
+      ['Bậc doanh thu từ', result.tier.minRevenue], ['Lương cơ bản', result.tier.base],
+      ['Hoa hồng Web (%)', result.tier.webRate], ['Hoa hồng Hosting (%)', result.tier.hostRate],
+      ['Hoa hồng tên miền (%)', DOMAIN_RATE * 100],
+      ['Tiền hoa hồng Web', result.webCommission],
+      ['Tiền hoa hồng Hosting', result.hostCommission],
+      ['Tiền hoa hồng tên miền', result.domainCommission],
+      ['Tổng lương trước khấu trừ', result.grossSalary],
+      ['Khấu trừ thu nhập 10%', result.deduction],
+      ['LƯƠNG THỰC NHẬN', result.salary]
     ];
     const text = '\ufeff' + rows.map(row => row.map(csvCell).join(',')).join('\r\n');
     const url = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8;' }));
@@ -272,6 +366,7 @@
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  addInterfaceExtensions();
   bindContractEvents();
   bindSettingsEvents();
   $('#exportCsv').addEventListener('click', exportCsv);
